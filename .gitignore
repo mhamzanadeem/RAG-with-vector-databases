@@ -1,24 +1,45 @@
-# Python
+# ------------------------------------------------------------------
+# Unified .gitignore
+# ------------------------------------------------------------------
+
+# ------------------- Python -------------------
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
 .venv/
 venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Uploaded documents & built vector stores (runtime data, created on the server)
+# ------------------- RAG runtime data -------------------
+# Uploaded documents, built vector indexes, and downloaded
+# model weights are generated on the server, never committed.
 backend/data/
 backend/stores/
-
-# Local Hugging Face model cache
 backend/model_cache/
 
-# Node / Next.js
-frontend/node_modules/
-frontend/.next/
-frontend/out/
+# ------------------- Node / Next.js -------------------
+node_modules/
+.next/
+out/
+build/
 
-# Environment files
+# ------------------- Environment / secrets -------------------
 .env
 .env.local
+.env.*.local
+!.env.example
 
-# OS
+# ------------------- Logs / temporary -------------------
+*.log
+npm-debug.log*
+.yarn-error.log*
 .DS_Store
+Thumbs.db
+
+# ------------------- IDEs / editors -------------------
+.vscode/
+.idea/
+*.swp
