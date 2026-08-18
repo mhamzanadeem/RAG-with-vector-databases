@@ -1,0 +1,16 @@
+# Render Blueprint – deploys the FastAPI backend
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Note: sentence-transformers + torch need RAM. On Render, pick at least
+# a Standard instance (free/Starter instances are too small for local
+# HuggingFace models).
+
+services:
+  - type: web
+    name: rag-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
