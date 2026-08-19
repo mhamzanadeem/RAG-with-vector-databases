@@ -34,5 +34,5 @@ VECTOR_DATABASES = ["FAISS", "Chroma"]
 # -----------------------------
 # Text chunking configuration
 # -----------------------------
-CHUNK_SIZE = 500
-CHUNK_OVERLAP = 100
+CHUNK_SIZE = 300
+CHUNK_OVERLAP = 50
