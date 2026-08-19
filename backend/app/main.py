@@ -12,14 +12,25 @@ Endpoints:
     POST /api/search            -> semantic retrieval
 """
 
+import os
+
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from app.config import DATA_DIR, EMBEDDING_MODELS, VECTOR_DATABASES, CHUNK_SIZE, CHUNK_OVERLAP
+from app.config import (
+    DATA_DIR,
+    EMBEDDING_MODELS,
+    VECTOR_DATABASES,
+    CHUNK_SIZE,
+    CHUNK_OVERLAP,
+)
 from app.pipeline import (
+    SUPPORTED_EXTENSIONS,
+    get_active_config,
     get_dataset_stats,
     process_documents,
+    save_active_config,
     search_documents_with_scores,
 )
 
@@ -49,8 +60,6 @@ class ProcessRequest(BaseModel):
 
 class SearchRequest(BaseModel):
     query: str
-    model_name: str
-    db_type: str
     top_k: int = 5
 
     model_config = {"protected_namespaces": ()}
@@ -78,6 +87,7 @@ def get_config():
         "vector_databases": VECTOR_DATABASES,
         "default_chunk_size": CHUNK_SIZE,
         "default_chunk_overlap": CHUNK_OVERLAP,
+        "active_config": get_active_config(),
     }
 
 
@@ -89,13 +99,16 @@ def stats():
 @app.post("/api/upload")
 def upload_files(files: list[UploadFile] = File(...)):
     """
-    Saves uploaded .txt files to the data directory.
+    Saves uploaded .txt / .pdf documents to the data directory.
     """
     DATA_DIR.mkdir(exist_ok=True)
     saved = 0
+    rejected = 0
 
     for file in files:
-        if not file.filename.endswith(".txt"):
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        if ext not in SUPPORTED_EXTENSIONS:
+            rejected += 1
             continue
         contents = file.file.read()
         with open(DATA_DIR / file.filename, "wb") as f:
@@ -103,7 +116,10 @@ def upload_files(files: list[UploadFile] = File(...)):
         saved += 1
 
     if saved == 0:
-        raise HTTPException(status_code=400, detail="No .txt files received.")
+        detail = f"No supported file received. Allowed: {', '.join(SUPPORTED_EXTENSIONS)}."
+        if rejected:
+            detail += f" Rejected {rejected} unsupported file(s)."
+        raise HTTPException(status_code=400, detail=detail)
 
     return {"saved": saved, "stats": get_dataset_stats()}
 
@@ -125,6 +141,9 @@ def process(body: ProcessRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    # Remember what built the store so Search can reuse it automatically.
+    save_active_config(body.model_name, body.db_type)
+
     return {
         "status": "success",
         "vector_db": body.db_type,
@@ -137,14 +156,28 @@ def process(body: ProcessRequest):
 def search(body: SearchRequest):
     """
     Runs semantic search and returns ordered results with relevance scores.
+
+    The embedding model and vector DB are NOT requested here — they are
+    reused from the config that built the store (see save_active_config).
     """
-    _validate_selections(body.model_name, body.db_type)
+    active = get_active_config()
+    if active is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No vector store has been built yet. Process documents first.",
+        )
 
     try:
         results = search_documents_with_scores(
-            body.query, body.model_name, body.db_type, top_k=body.top_k
+            body.query, active["model_name"], active["db_type"], top_k=body.top_k
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {e}")
 
-    return {"query": body.query, "top_k": body.top_k, "results": results}
+    return {
+        "query": body.query,
+        "top_k": body.top_k,
+        "model_name": active["model_name"],
+        "db_type": active["db_type"],
+        "results": results,
+    }

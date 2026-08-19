@@ -29,8 +29,8 @@ top_k = st.sidebar.slider("Top-K Results", 1, 10, 5)
 st.subheader("Upload Documents")
 
 uploaded_files = st.file_uploader(
-    "Upload TXT files",
-    type=["txt"],
+    "Upload TXT / PDF files",
+    type=["txt", "pdf"],
     accept_multiple_files=True
 )
 

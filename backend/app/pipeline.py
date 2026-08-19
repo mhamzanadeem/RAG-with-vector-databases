@@ -11,29 +11,74 @@ Core backend logic:
 Consumed by the FastAPI layer (app/main.py) and the local Streamlit GUI (gui.py).
 """
 
+import json
 import os
-from langchain_community.document_loaders import TextLoader
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from app.config import DATA_DIR, CHUNK_SIZE, CHUNK_OVERLAP
+from app.config import (
+    ACTIVE_CONFIG_FILE,
+    DATA_DIR,
+    CHUNK_SIZE,
+    CHUNK_OVERLAP,
+    EMBEDDING_MODELS,
+    VECTOR_DATABASES,
+)
 from embeddings.embedding_manager import load_embedding_model
 from Vector_Store import create_vector_store, load_vector_store
 
 
+def save_active_config(model_name: str, db_type: str):
+    """
+    Persists which embedding model + vector DB built the current store,
+    so search can reuse it automatically instead of asking again.
+    """
+    ACTIVE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(ACTIVE_CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump({"model_name": model_name, "db_type": db_type}, f)
+
+
+def get_active_config():
+    """
+    Returns the stored {model_name, db_type} used to build the current
+    vector store, or None if nothing has been processed yet.
+    """
+    if not ACTIVE_CONFIG_FILE.exists():
+        return None
+
+    with open(ACTIVE_CONFIG_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if data.get("model_name") not in EMBEDDING_MODELS:
+        return None
+    if data.get("db_type") not in VECTOR_DATABASES:
+        return None
+    return data
+
+
+SUPPORTED_EXTENSIONS = (".txt", ".pdf")
+
+
 def load_documents():
     """
-    Loads all .txt documents from the data directory.
+    Loads all supported documents (.txt, .pdf) from the data directory.
     """
     documents = []
 
     for file in os.listdir(DATA_DIR):
-        if file.endswith(".txt"):
-            file_path = os.path.join(DATA_DIR, file)
-            try:
+        ext = os.path.splitext(file)[1].lower()
+        if ext not in SUPPORTED_EXTENSIONS:
+            continue
+
+        file_path = os.path.join(DATA_DIR, file)
+        try:
+            if ext == ".pdf":
+                loader = PyPDFLoader(file_path)
+            else:
                 loader = TextLoader(file_path, encoding="utf-8")
-                documents.extend(loader.load())
-            except Exception as e:
-                print(f"Error loading {file}: {e}")
+            documents.extend(loader.load())
+        except Exception as e:
+            print(f"Error loading {file}: {e}")
 
     return documents
 
@@ -42,7 +87,7 @@ def split_documents(documents, chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLA
     """
     Splits documents into smaller chunks for better embeddings.
     Chunk size / overlap are configurable so different chunking
-    strategies can be compared (see docs/chunking-strategies.md).
+    strategies can be compared (see README § 2).
     """
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
@@ -61,7 +106,7 @@ def process_documents(model_name, db_type, chunk_size=CHUNK_SIZE, chunk_overlap=
     """
     docs = load_documents()
     if not docs:
-        raise ValueError("No documents found. Upload at least one .txt file first.")
+        raise ValueError("No documents found. Upload at least one .txt or .pdf file first.")
 
     chunks = split_documents(docs, chunk_size, chunk_overlap)
     embeddings = load_embedding_model(model_name)
@@ -121,13 +166,16 @@ def search_documents_with_scores(query, model_name, db_type, top_k=5):
 
 def get_dataset_stats():
     """
-    Returns basic statistics about the uploaded document set.
+    Returns basic statistics about the uploaded document set (txt + pdf).
     """
-    txt_files = [f for f in os.listdir(DATA_DIR) if f.endswith(".txt")]
-    total_bytes = sum(os.path.getsize(os.path.join(DATA_DIR, f)) for f in txt_files)
+    files = [
+        f for f in os.listdir(DATA_DIR)
+        if os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS
+    ]
+    total_bytes = sum(os.path.getsize(os.path.join(DATA_DIR, f)) for f in files)
 
     return {
-        "document_count": len(txt_files),
-        "files": sorted(txt_files),
+        "document_count": len(files),
+        "files": sorted(files),
         "total_size_bytes": total_bytes,
     }

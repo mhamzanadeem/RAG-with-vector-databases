@@ -40,11 +40,11 @@ export default function UploadPanel({
   return (
     <section className="card">
       <h2>1. Upload Documents</h2>
-      <p className="hint">Upload .txt files (10–15 recommended). Nothing is hard-coded.</p>
+      <p className="hint">Upload .txt or .pdf files (10–15 recommended). Nothing is hard-coded.</p>
 
       <input
         type="file"
-        accept=".txt"
+        accept=".txt,.pdf"
         multiple
         onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
       />

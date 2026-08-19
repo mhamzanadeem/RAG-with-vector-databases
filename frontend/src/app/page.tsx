@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AppConfig, ProcessResponse, getConfig, getStats } from "@/lib/api";
+import { API_URL, AppConfig, ProcessResponse, getConfig } from "@/lib/api";
 import UploadPanel from "@/components/UploadPanel";
 import ConfigPanel from "@/components/ConfigPanel";
 import SearchPanel from "@/components/SearchPanel";
@@ -20,10 +20,11 @@ export default function Home() {
         const cfg = await getConfig();
         if (cancelled) return;
         setConfig(cfg);
+        if (cfg.active_config) setDbReady(true);
       } catch (e) {
         if (!cancelled) {
           setApiError(
-            "Could not reach the backend API. Is it running on Render and is NEXT_PUBLIC_API_URL set?"
+            `Could not reach the backend at ${API_URL}: ${(e as Error).message}. Make sure the backend is running and NEXT_PUBLIC_API_URL points to it.`
           );
         }
       }
@@ -36,7 +37,21 @@ export default function Home() {
   }, []);
 
   function handleProcessed(res: ProcessResponse) {
-    if (res.chunks_indexed > 0) setDbReady(true);
+    if (res.chunks_indexed > 0) {
+      setDbReady(true);
+      // Lock Search to whatever model + DB just built the store.
+      setConfig((prev) =>
+        prev
+          ? {
+              ...prev,
+              active_config: {
+                model_name: res.embedding_model,
+                db_type: res.vector_db,
+              },
+            }
+          : prev
+      );
+    }
   }
 
   function handleUploaded() {
@@ -73,11 +88,11 @@ export default function Home() {
       <div className="layout">
         <UploadPanel onUploaded={handleUploaded} />
         <ConfigPanel config={config} onProcessed={handleProcessed} disabled={!config} />
-        <SearchPanel config={config} enabled={dbReady} />
+        <SearchPanel enabled={dbReady} />
       </div>
 
       <footer className="footer">
-        Frontend: {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}
+        Frontend: {API_URL}
       </footer>
     </main>
   );

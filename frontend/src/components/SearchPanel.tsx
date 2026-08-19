@@ -1,16 +1,8 @@
 import { useState } from "react";
-import { AppConfig, SearchResponse, searchDocuments } from "@/lib/api";
+import { SearchResponse, searchDocuments } from "@/lib/api";
 import ResultsList from "@/components/ResultsList";
 
-export default function SearchPanel({
-  config,
-  enabled,
-}: {
-  config: AppConfig;
-  enabled: boolean;
-}) {
-  const [model, setModel] = useState(config.embedding_models[0]);
-  const [dbType, setDbType] = useState(config.vector_databases[0]);
+export default function SearchPanel({ enabled }: { enabled: boolean }) {
   const [topK, setTopK] = useState(5);
   const [query, setQuery] = useState("");
   const [response, setResponse] = useState<SearchResponse | null>(null);
@@ -22,7 +14,7 @@ export default function SearchPanel({
     setBusy(true);
     setError(null);
     try {
-      const res = await searchDocuments(query.trim(), model, dbType, topK);
+      const res = await searchDocuments(query.trim(), topK);
       setResponse(res);
     } catch (e) {
       setError((e as Error).message);
@@ -49,26 +41,6 @@ export default function SearchPanel({
 
       <div className="row">
         <label>
-          Model
-          <select value={model} onChange={(e) => setModel(e.target.value)}>
-            {config.embedding_models.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Vector DB
-          <select value={dbType} onChange={(e) => setDbType(e.target.value)}>
-            {config.vector_databases.map((db) => (
-              <option key={db} value={db}>
-                {db}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
           Top-K {topK}
           <input
             type="range"
@@ -85,7 +57,12 @@ export default function SearchPanel({
       </button>
 
       {error && <p className="error">{error}</p>}
-      {!enabled && <p className="hint">Upload and process documents before searching.</p>}
+      {!enabled && (
+        <p className="hint">
+          Upload and process documents first — Search automatically uses the
+          model and vector DB chosen when processing.
+        </p>
+      )}
 
       <ResultsList response={response} />
     </section>

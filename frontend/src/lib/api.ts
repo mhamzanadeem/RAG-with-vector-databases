@@ -1,8 +1,14 @@
+export interface ActiveConfig {
+  model_name: string;
+  db_type: string;
+}
+
 export interface AppConfig {
   embedding_models: string[];
   vector_databases: string[];
   default_chunk_size: number;
   default_chunk_overlap: number;
+  active_config: ActiveConfig | null;
 }
 
 export interface DatasetStats {
@@ -21,6 +27,8 @@ export interface SearchResult {
 export interface SearchResponse {
   query: string;
   top_k: number;
+  model_name: string;
+  db_type: string;
   results: SearchResult[];
 }
 
@@ -34,11 +42,20 @@ export interface ProcessResponse {
 const API_URL: string =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+export { API_URL };
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, init);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, init);
+  } catch (e) {
+    throw new Error(
+      `Could not reach backend at ${API_URL}. Start it (python -m uvicorn app.main:app --reload) and check NEXT_PUBLIC_API_URL.`
+    );
+  }
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(`API ${res.status}: ${detail}`);
+    throw new Error(`API ${res.status} (${API_URL}${path}): ${detail}`);
   }
   return res.json() as Promise<T>;
 }
@@ -79,19 +96,12 @@ export function processDocuments(
   });
 }
 
-export function searchDocuments(
-  query: string,
-  modelName: string,
-  dbType: string,
-  topK: number
-): Promise<SearchResponse> {
+export function searchDocuments(query: string, topK: number): Promise<SearchResponse> {
   return request("/api/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       query,
-      model_name: modelName,
-      db_type: dbType,
       top_k: topK,
     }),
   });
