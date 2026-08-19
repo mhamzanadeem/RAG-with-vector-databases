@@ -9,6 +9,7 @@ Endpoints:
     GET  /api/stats             -> dataset statistics
     POST /api/upload            -> upload .txt documents
     POST /api/process           -> chunk + embed + build vector store
+    GET  /api/keep-alive        -> keep server awake (ping every 30s)
     POST /api/search            -> semantic retrieval
 """
 
@@ -150,6 +151,11 @@ def process(body: ProcessRequest):
         "embedding_model": body.model_name,
         "chunks_indexed": num_chunks,
     }
+
+
+@app.get("/api/keep-alive")
+def keep_alive():
+    return {"status": "awake"}
 
 
 @app.post("/api/search")
