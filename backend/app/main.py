@@ -14,6 +14,16 @@ Endpoints:
 """
 
 import os
+import logging
+import sys
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stdout,
+)
+
+logger = logging.getLogger(__name__)
 
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -81,11 +91,13 @@ def _validate_selections(model_name: str, db_type: str):
 # -----------------------------
 @app.get("/health")
 def health():
+    logger.info("Health check requested")
     return {"status": "ok"}
 
 
 @app.get("/api/config")
 def get_config():
+    logger.info("Config request received")
     return {
         "embedding_models": EMBEDDING_MODELS,
         "vector_databases": VECTOR_DATABASES,
@@ -158,6 +170,7 @@ def process(body: ProcessRequest):
 
 @app.get("/api/keep-alive")
 def keep_alive():
+    logger.info("Keep-alive ping received - server awake")
     return {"status": "awake"}
 
 
